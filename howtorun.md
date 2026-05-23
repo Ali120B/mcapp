@@ -33,7 +33,14 @@ This installs JS dependencies and creates/updates `package-lock.json`.
 npm run dev
 ```
 
-### Desktop dev (Tauri + frontend)
+### Desktop dev (Tauri + frontend, one command)
+```bash
+npm run run
+```
+
+This uses the `run` script (`tauri dev`), which automatically triggers `beforeDevCommand` (`npm run dev`) from `src-tauri/tauri.conf.json` so both the web UI and desktop app start together.
+
+If you prefer, you can still run:
 ```bash
 npm run tauri dev
 ```
@@ -97,6 +104,8 @@ npm install
 
 # dev
 npm run dev
+npm run run
+# optional equivalent
 npm run tauri dev
 
 # build
