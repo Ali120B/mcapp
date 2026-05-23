@@ -15,3 +15,13 @@ button { cursor: pointer; }
 .cards li { padding: 14px; border: 1px solid #2d3d5f; border-radius: 12px; background: linear-gradient(180deg,#121a29,#111722); }
 .row { display: flex; gap: 8px; margin-top: 8px; align-items:center; }
 .error { color: #ff8c8c; }
+.toast-stack{position:fixed;right:14px;top:14px;display:grid;gap:8px;z-index:20}
+.toast{padding:10px 12px;border-radius:10px;border:1px solid #334; background:#0f1622}
+.toast.success{border-color:#2f7}
+.toast.error{border-color:#f66}
+.toast.info{border-color:#5af}
+.download-tray{position:fixed;right:14px;bottom:14px;width:280px;max-height:50vh;overflow:auto;background:#0f1622d9;border:1px solid #2d3d5f;border-radius:12px;padding:10px;display:grid;gap:8px;z-index:15}
+.download-tray h4{margin:0}
+.download-tray progress{width:100%}
+.empty{padding:24px;border:1px dashed #3e4e70;border-radius:12px;background:#0f1522;margin:8px 0}
+.offline-banner{background:#5b3f12;color:#ffd188;border:1px solid #916624;padding:8px 10px;border-radius:10px;margin-bottom:10px}
