@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { createInstance, deleteInstance, detectJavaInstallations, downloadAdoptiumJava, listInstances, recommendJavaForMc, type InstanceSummary, type JavaInstallation, type JavaRecommendation } from '../hooks/api';
+import { createInstance, deleteInstance, detectJavaInstallations, downloadAdoptiumJava, duplicateInstance, listInstances, recommendJavaForMc, setInstanceGroup, type InstanceSummary, type JavaInstallation, type JavaRecommendation } from '../hooks/api';
 
 export function LibraryPage(){
   const [instances,setInstances]=useState<InstanceSummary[]>([]);
@@ -36,6 +36,6 @@ export function LibraryPage(){
     </ul>
     {rec && <p>Required Java for {rec.mc_version}: <b>{rec.required_major}</b> {rec.installed_match ? '✅ installed' : '⚠️ missing'}</p>}
 
-    <ul className='cards'>{instances.map(i=><li key={i.id}><b>{i.name}</b><p>{i.mc_version} · {i.loader}</p><Link to={`/instance/${i.id}`}>Open</Link><button onClick={()=>deleteInstance(i.id).then(s=>setInstances(s.instances))}>Delete</button></li>)}</ul>
+    <ul className='cards'>{instances.map(i=><li key={i.id}><b>{i.name}</b><p>{i.mc_version} · {i.loader} {i.group?`· ${i.group}`:""}</p><Link to={`/instance/${i.id}`}>Open</Link><button onClick={()=>duplicateInstance(i.id, `${i.name} Copy`).then(s=>setInstances(s.instances))}>Duplicate</button><button onClick={()=>{ const g=prompt("Group name", i.group||""); if(g!==null) setInstanceGroup(i.id,g||null).then(s=>setInstances(s.instances)); }}>Set group</button><button onClick={()=>deleteInstance(i.id).then(s=>setInstances(s.instances))}>Delete</button></li>)}</ul>
   </section>
 }

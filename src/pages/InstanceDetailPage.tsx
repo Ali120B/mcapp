@@ -44,9 +44,15 @@ export function InstanceDetailPage() {
 
     <h3>Settings</h3>
     <div className='toolbar'>
-      <input value={state.settings.memory_mb} type='number' onChange={e=>saveSettings({...state.settings,memory_mb:Number(e.target.value)})} />
-      <input value={state.settings.width} type='number' onChange={e=>saveSettings({...state.settings,width:Number(e.target.value)})} />
-      <input value={state.settings.height} type='number' onChange={e=>saveSettings({...state.settings,height:Number(e.target.value)})} />
+      <label>RAM MB <input value={state.settings.memory_mb} type='number' onChange={e=>saveSettings({...state.settings,memory_mb:Number(e.target.value)})} /></label>
+      <label>Width <input value={state.settings.width} type='number' onChange={e=>saveSettings({...state.settings,width:Number(e.target.value)})} /></label>
+      <label>Height <input value={state.settings.height} type='number' onChange={e=>saveSettings({...state.settings,height:Number(e.target.value)})} /></label>
+      <label>Java path <input value={state.settings.java_path ?? ''} onChange={e=>saveSettings({...state.settings,java_path:e.target.value || null})} /></label>
+      <label>Pre-launch hook <input value={state.settings.pre_launch_hook ?? ''} onChange={e=>saveSettings({...state.settings,pre_launch_hook:e.target.value || null})} /></label>
+      <label>Post-exit hook <input value={state.settings.post_exit_hook ?? ''} onChange={e=>saveSettings({...state.settings,post_exit_hook:e.target.value || null})} /></label>
     </div>
+
+    <h3>Logs</h3>
+    <pre style={{maxHeight:220,overflow:'auto',background:'#111',padding:12,borderRadius:8}}>{state.logs.join('\n') || 'No logs yet.'}</pre>
   </section>;
 }
