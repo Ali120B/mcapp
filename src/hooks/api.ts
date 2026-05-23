@@ -4,7 +4,7 @@ export type AccountsState={active_account_id:string|null;accounts:OfflineAccount
 export type ModrinthProject={id?:string;project_id?:string;slug?:string;title:string;description:string;body?:string;icon_url:string|null;downloads?:number;followers?:number;project_type:string;author?:string;categories?:string[]};
 export type ModrinthVersion={id:string;name:string;version_number:string;game_versions:string[];loaders:string[];date_published:string};
 export type SearchResponse={hits:ModrinthProject[];total_hits?:number};
-export type InstanceSummary={id:string;name:string;mc_version:string;loader:string;last_played?:string|null};
+export type InstanceSummary={id:string;name:string;mc_version:string;loader:string;last_played?:string|null;group?:string|null};
 export type InstancesState={instances:InstanceSummary[]};
 export type InstanceModEntry={file_name:string;project_id:string;version_id:string;enabled:boolean;path:string};
 export type InstanceSettings={memory_mb:number;java_path?:string|null;width:number;height:number;pre_launch_hook?:string|null;post_exit_hook?:string|null};
@@ -37,3 +37,6 @@ export type RunningInstance={instance_id:string;pid:number;started_at:string};
 export const launchInstance=(instanceId:string)=>invoke<string>('launch_instance',{instanceId});
 export const stopInstance=(instanceId:string)=>invoke<boolean>('stop_instance',{instanceId});
 export const getRunningInstances=()=>invoke<RunningInstance[]>('get_running_instances');
+
+export const setInstanceGroup=(instanceId:string,group:string|null)=>invoke<InstancesState>('set_instance_group',{instanceId,group});
+export const duplicateInstance=(instanceId:string,newName:string)=>invoke<InstancesState>('duplicate_instance',{instanceId,newName});

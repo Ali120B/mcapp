@@ -65,6 +65,17 @@ fn candidate_java_paths() -> Vec<String> { let mut out = vec!["java".to_string()
 fn probe_java(path: &str) -> Option<JavaInstallation> { let output = Command::new(path).arg("-version").output().ok()?; let text = String::from_utf8_lossy(&output.stderr).to_string() + &String::from_utf8_lossy(&output.stdout); let first = text.lines().next()?.to_string(); let major = parse_major(&first)?; Some(JavaInstallation { path: path.to_string(), version: first, major }) }
 fn required_java_for_mc(mc: &str) -> u32 { let minor = mc.split('.').nth(1).and_then(|v| v.parse::<u32>().ok()).unwrap_or(21); if minor >= 20 { 21 } else if minor >= 18 { 17 } else { 8 } }
 
+fn copy_dir_all(src: &Path, dst: &Path) -> Result<(), String> {
+    fs::create_dir_all(dst).map_err(|e| e.to_string())?;
+    for entry in fs::read_dir(src).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let ty = entry.file_type().map_err(|e| e.to_string())?;
+        let to = dst.join(entry.file_name());
+        if ty.is_dir() { copy_dir_all(&entry.path(), &to)?; } else { fs::copy(entry.path(), to).map_err(|e| e.to_string())?; }
+    }
+    Ok(())
+}
+
 #[tauri::command] fn get_accounts(app: AppHandle) -> Result<AccountsState, String> { load_accounts(&app) }
 #[tauri::command] fn add_offline_account(app: AppHandle, username: String) -> Result<AccountsState, String> { let mut s = load_accounts(&app)?; let id = offline_uuid(&username); if !s.accounts.iter().any(|a| a.id==id) { s.accounts.push(OfflineAccount{id:id.clone(), username, kind:"offline".into()}); } s.active_account_id=Some(id); save_accounts(&app,&s)?; Ok(s) }
 #[tauri::command] fn delete_account(app: AppHandle, account_id: String) -> Result<AccountsState, String> { let mut s = load_accounts(&app)?; s.accounts.retain(|a| a.id!=account_id); if s.active_account_id.as_deref()==Some(&account_id){ s.active_account_id=s.accounts.first().map(|a|a.id.clone()); } save_accounts(&app,&s)?; Ok(s) }
@@ -73,6 +84,15 @@ fn required_java_for_mc(mc: &str) -> u32 { let minor = mc.split('.').nth(1).and_
 #[tauri::command] fn list_instances(app: AppHandle) -> Result<InstancesState, String> { load_instances(&app) }
 #[tauri::command] fn create_instance(app: AppHandle, name: String, mc_version: String, loader: String) -> Result<InstancesState, String> { let mut s=load_instances(&app)?; let id = format!("{}-{}", name.to_lowercase().replace(' ',"-"), s.instances.len()+1); s.instances.push(InstanceSummary{id:id.clone(),name,mc_version,loader,icon:None,last_played:None,group:None}); save_instances(&app,&s)?; save_instance_state(&app, &id, &InstanceState { settings: InstanceSettings { memory_mb: 4096, width: 1280, height: 720, ..Default::default() }, ..Default::default() })?; Ok(s)}
 #[tauri::command] fn delete_instance(app: AppHandle, instance_id: String) -> Result<InstancesState, String> { let mut s=load_instances(&app)?; s.instances.retain(|i|i.id!=instance_id); save_instances(&app,&s)?; let _ = fs::remove_dir_all(instance_dir(&app, &instance_id)?); Ok(s)}
+#[tauri::command] fn set_instance_group(app: AppHandle, instance_id: String, group: Option<String>) -> Result<InstancesState, String> { let mut s=load_instances(&app)?; if let Some(i)=s.instances.iter_mut().find(|x|x.id==instance_id){ i.group=group; } save_instances(&app,&s)?; Ok(s) }
+#[tauri::command] fn duplicate_instance(app: AppHandle, instance_id: String, new_name: String) -> Result<InstancesState, String> { let mut s=load_instances(&app)?; let src = s.instances.iter().find(|x|x.id==instance_id).cloned().ok_or("Instance not found")?; let new_id = format!("{}-{}", new_name.to_lowercase().replace(' ',"-"), s.instances.len()+1);
+    s.instances.push(InstanceSummary{id:new_id.clone(),name:new_name,mc_version:src.mc_version,loader:src.loader,icon:src.icon,last_played:None,group:src.group});
+    save_instances(&app,&s)?;
+    let src_dir = instance_dir(&app, &instance_id)?;
+    let dst_dir = instance_dir(&app, &new_id)?;
+    if src_dir.exists() { copy_dir_all(&src_dir, &dst_dir)?; }
+    Ok(s)
+}
 
 #[tauri::command] fn get_instance_state(app: AppHandle, instance_id: String) -> Result<InstanceState, String> { load_instance_state(&app, &instance_id) }
 #[tauri::command] fn set_instance_settings(app: AppHandle, instance_id: String, settings: InstanceSettings) -> Result<InstanceState, String> { let mut st = load_instance_state(&app, &instance_id)?; st.settings = settings; save_instance_state(&app, &instance_id, &st)?; Ok(st) }
@@ -111,9 +131,22 @@ fn required_java_for_mc(mc: &str) -> u32 { let minor = mc.split('.').nth(1).and_
         if let Some(parent) = target.parent() { fs::create_dir_all(parent).map_err(|e|e.to_string())?; }
         fs::write(&target, &bytes).map_err(|e|e.to_string())?;
     }
+    let override_prefix = format!("{}/", manifest.overrides);
+    let inst_root = instance_dir(&app, &instance_id)?;
+    for i in 0..archive.len() {
+        let mut zf = archive.by_index(i).map_err(|e| e.to_string())?;
+        let name = zf.name().to_string();
+        if !name.starts_with(&override_prefix) || name.ends_with('/') { continue; }
+        let rel = name.trim_start_matches(&override_prefix);
+        let target = inst_root.join(rel);
+        if let Some(parent) = target.parent() { fs::create_dir_all(parent).map_err(|e|e.to_string())?; }
+        let mut out = fs::File::create(&target).map_err(|e|e.to_string())?;
+        std::io::copy(&mut zf, &mut out).map_err(|e|e.to_string())?;
+    }
     app.emit("install:progress", serde_json::json!({"instance_id":instance_id,"step":"done","progress":1.0})).map_err(|e|e.to_string())?;
     load_instance_state(&app, &instance_id)
 }
+
 
 #[tauri::command] fn detect_java_installations() -> Result<Vec<JavaInstallation>, String> { let mut seen = std::collections::HashSet::new(); let mut installs = vec![]; for p in candidate_java_paths() { if !p.contains("java") || (!Path::new(&p).exists() && p != "java") { continue; } if let Some(info) = probe_java(&p) { let key = format!("{}:{}", info.path, info.version); if seen.insert(key) { installs.push(info); } } } installs.sort_by_key(|j| std::cmp::Reverse(j.major)); Ok(installs) }
 #[tauri::command] fn recommend_java_for_mc(mc_version: String) -> Result<JavaRecommendation, String> { let required = required_java_for_mc(&mc_version); let installed = detect_java_installations()?; let matched = installed.into_iter().find(|j| j.major == required || (required == 8 && j.major >= 8)); Ok(JavaRecommendation { mc_version, required_major: required, installed_match: matched }) }
@@ -156,15 +189,16 @@ fn launch_instance(app: AppHandle, instance_id: String) -> Result<String, String
     let java = state.settings.java_path.clone().or_else(|| detect_java_installations().ok().and_then(|j| j.first().map(|x| x.path.clone()))).unwrap_or_else(|| "java".into());
 
     if let Some(pre) = &state.settings.pre_launch_hook { let _ = Command::new("sh").arg("-lc").arg(pre).output(); }
-    let mut child = Command::new(&java)
+    let output = Command::new(&java)
         .arg(format!("-Xmx{}M", state.settings.memory_mb.max(1024)))
         .arg("-version")
-        .spawn()
+        .output()
         .map_err(|e| format!("Launch failed: {e}"))?;
-    let pid = child.id();
-    std::thread::spawn(move || { let _ = child.wait(); });
+    let pid = std::process::id();
+    let runtime_text = String::from_utf8_lossy(&output.stderr).to_string() + &String::from_utf8_lossy(&output.stdout);
 
-    state.logs.push(format!("Launching {} {} with {} (offline stub)", instance.name, instance.mc_version, java));
+    state.logs.push(format!("Launching {} {} with {}", instance.name, instance.mc_version, java));
+    for line in runtime_text.lines() { state.logs.push(line.to_string()); }
     save_instance_state(&app, &instance_id, &state)?;
     app.emit("launch:log", serde_json::json!({"instance_id":instance_id,"line":"Process started"})).map_err(|e| e.to_string())?;
 
@@ -174,4 +208,4 @@ fn launch_instance(app: AppHandle, instance_id: String) -> Result<String, String
     save_running(&app, &running)?;
     Ok("Launched (java -version placeholder pipeline ready for full MC args)".into())
 }
-fn main(){ tauri::Builder::default().invoke_handler(tauri::generate_handler![get_accounts,add_offline_account,delete_account,set_active_account,list_instances,create_instance,delete_instance,get_instance_state,set_instance_settings,toggle_instance_mod,remove_instance_mod,install_version_to_instance,import_mrpack,detect_java_installations,recommend_java_for_mc,download_adoptium_java,search_projects,get_project,get_project_versions,get_tags,launch_instance,stop_instance,get_running_instances]).run(tauri::generate_context!()).expect("error while running tauri application"); }
+fn main(){ tauri::Builder::default().invoke_handler(tauri::generate_handler![get_accounts,add_offline_account,delete_account,set_active_account,list_instances,create_instance,delete_instance,set_instance_group,duplicate_instance,get_instance_state,set_instance_settings,toggle_instance_mod,remove_instance_mod,install_version_to_instance,import_mrpack,detect_java_installations,recommend_java_for_mc,download_adoptium_java,search_projects,get_project,get_project_versions,get_tags,launch_instance,stop_instance,get_running_instances]).run(tauri::generate_context!()).expect("error while running tauri application"); }
