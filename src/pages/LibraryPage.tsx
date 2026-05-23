@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { createInstance, deleteInstance, detectJavaInstallations, downloadAdoptiumJava, listInstances, recommendJavaForMc, type InstanceSummary, type JavaInstallation, type JavaRecommendation } from '../hooks/api';
 
 export function LibraryPage(){
@@ -35,6 +36,6 @@ export function LibraryPage(){
     </ul>
     {rec && <p>Required Java for {rec.mc_version}: <b>{rec.required_major}</b> {rec.installed_match ? '✅ installed' : '⚠️ missing'}</p>}
 
-    <ul className='cards'>{instances.map(i=><li key={i.id}><b>{i.name}</b><p>{i.mc_version} · {i.loader}</p><button onClick={()=>deleteInstance(i.id).then(s=>setInstances(s.instances))}>Delete</button></li>)}</ul>
+    <ul className='cards'>{instances.map(i=><li key={i.id}><b>{i.name}</b><p>{i.mc_version} · {i.loader}</p><Link to={`/instance/${i.id}`}>Open</Link><button onClick={()=>deleteInstance(i.id).then(s=>setInstances(s.instances))}>Delete</button></li>)}</ul>
   </section>
 }
