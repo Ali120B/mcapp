@@ -1,30 +1,51 @@
-import React, { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { listen } from '@tauri-apps/api/event';
 
 type Toast = { id: number; kind: 'success'|'error'|'info'; message: string };
+
+type TaskKind = 'download' | 'import';
+type TaskStatus = 'queued' | 'running' | 'done' | 'error';
+type TaskItem = { id: string; instanceId: string; label: string; kind: TaskKind; status: TaskStatus; step: string; progress: number; updatedAt: number; error?: string };
+
+type TaskCenterCtxValue = {
+  queueTask: (task: Omit<TaskItem, 'updatedAt'>) => void;
+  updateTask: (id: string, patch: Partial<TaskItem>) => void;
+};
+const TASKS_KEY = 'pulsar-task-center-v1';
+const TaskCenterCtx = createContext<TaskCenterCtxValue>({ queueTask: () => {}, updateTask: () => {} });
+export function useTaskCenter(){ return useContext(TaskCenterCtx); }
+
 const ToastCtx = createContext<{push:(kind:Toast['kind'],message:string)=>void}>({push:()=>{}});
 export function useToast(){ return useContext(ToastCtx); }
 
 export function AppProviders({children}:{children:ReactNode}){
   const [toasts,setToasts]=useState<Toast[]>([]);
-  const [downloads,setDownloads]=useState<Record<string,{step:string;progress:number}>>({});
+  const [tasks,setTasks]=useState<Record<string,TaskItem>>(()=>{
+    try { return JSON.parse(localStorage.getItem(TASKS_KEY) ?? '{}') as Record<string, TaskItem>; } catch { return {}; }
+  });
   const push=(kind:Toast['kind'],message:string)=>{ const id=Date.now()+Math.random(); setToasts(t=>[...t,{id,kind,message}]); setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),3000); };
+  const queueTask: TaskCenterCtxValue['queueTask'] = (task)=>setTasks(prev=>({ ...prev, [task.id]: { ...task, updatedAt: Date.now() } }));
+  const updateTask: TaskCenterCtxValue['updateTask'] = (id, patch)=>setTasks(prev=>({ ...prev, [id]: { ...prev[id], ...patch, updatedAt: Date.now() } }));
+
+  useEffect(()=>{ localStorage.setItem(TASKS_KEY, JSON.stringify(tasks)); },[tasks]);
 
   useEffect(()=>{ let unlisten: undefined | (()=>void); void listen<any>('install:progress', (event)=>{
     const p = event.payload as { instance_id:string; step:string; progress:number };
-    setDownloads(d=>({ ...d, [p.instance_id]: { step: p.step, progress: p.progress }}));
+    const id = `install-${p.instance_id}`;
+    queueTask({ id, instanceId: p.instance_id, label: `Install content for ${p.instance_id}`, kind: 'download', status: p.progress >= 1 ? 'done' : 'running', step: p.step, progress: p.progress });
     if (p.progress >= 1) push('success', `Install complete for ${p.instance_id}`);
   }).then(fn=>{ unlisten=fn; }); return ()=>{ if(unlisten) unlisten();}; },[]);
+  const orderedTasks = useMemo(()=>Object.values(tasks).sort((a,b)=>b.updatedAt-a.updatedAt),[tasks]);
 
-  return <ToastCtx.Provider value={{push}}>{children}
+  return <ToastCtx.Provider value={{push}}><TaskCenterCtx.Provider value={{queueTask, updateTask}}>{children}
     <div className='toast-stack'>{toasts.map(t=><div key={t.id} className={`toast ${t.kind}`}>{t.message}</div>)}</div>
     <div className='download-tray'>
-      <h4>Downloads</h4>
-      {!Object.keys(downloads).length && <small>No active downloads</small>}
-      {Object.entries(downloads).map(([id,d])=><div key={id}><b>{id}</b><small>{d.step}</small><progress max={1} value={Math.max(0,Math.min(1,d.progress))}/></div>)}
+      <h4>Task Center</h4>
+      {!orderedTasks.length && <small>No queued background tasks</small>}
+      {orderedTasks.map((t)=><div key={t.id}><b>{t.label}</b><small>{t.kind} · {t.status} · {t.step}</small><progress max={1} value={Math.max(0,Math.min(1,t.progress))}/></div>)}
     </div>
-  </ToastCtx.Provider>;
+  </TaskCenterCtx.Provider></ToastCtx.Provider>;
 }
 
 export function EmptyState({title,action}:{title:string;action?:ReactNode}){ return <div className='empty'><p>{title}</p>{action}</div>; }

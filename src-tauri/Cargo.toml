@@ -1,7 +1,7 @@
 [package]
-name = "mcapp"
+name = "pulsar-launcher"
 version = "0.1.0"
-description = "Minecraft launcher"
+description = "Pulsar Launcher"
 authors = ["you"]
 edition = "2021"
 

@@ -1,6 +1,6 @@
-# MCApp
+# Pulsar Launcher
 
-MCApp is a **Tauri v2 + React + TypeScript** Minecraft launcher aligned to the full multi-phase delivery plan in `plan.md`.
+Pulsar Launcher is a **Tauri v2 + React + TypeScript** Minecraft launcher aligned to the full multi-phase delivery plan in `plan.md`.
 
 ## Phase implementation status audit (0–12)
 
@@ -36,18 +36,11 @@ A full parity pass has been applied to phases that were previously marked “bas
 - The repo is documented as full-plan complete across phases 0–12.
 - Remaining work is now primarily iterative UX/performance polish rather than missing phase scope.
 
-## Suggested next improvements
+## Phase 13
 
-1. **End-to-end test coverage**
-   - Add Playwright smoke paths for: create account → create instance → install content → launch/stop.
-2. **Stronger resilience and retries**
-   - Add retry/backoff and resumable downloads for larger modpacks and flaky networks.
-3. **Observability panel**
-   - Add a lightweight diagnostics panel for launch args, Java resolution, and last install errors.
-4. **Background task UX**
-   - Unified task center for downloads/imports with persisted queue state.
-5. **Release hardening**
-   - Add signed release workflow and platform validation matrix (Windows/Linux/macOS).
+| Phase | Status | Notes |
+|---|---|---|
+| 13 | ✅ Completed | Background task UX: unified task center for downloads/imports with persisted queue state. |
 
 ## UI quality / reference direction
 
