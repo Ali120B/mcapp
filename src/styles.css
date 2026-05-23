@@ -1,0 +1,14 @@
+:root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+body { margin: 0; background: #0f1118; color: #e8ecf3; }
+.app-shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+.sidebar { border-right: 1px solid #1f2430; padding: 16px; }
+.sidebar nav { display: grid; gap: 8px; }
+.sidebar a { color: #8ea6ff; text-decoration: none; padding: 6px 8px; border-radius: 6px; }
+.sidebar a.active { background: #1f2b4a; color: #dce6ff; }
+.content { padding: 20px; }
+.toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+input, button { padding: 8px 10px; border-radius: 8px; border: 1px solid #2c3446; background: #141a24; color: #e8ecf3; }
+.cards { list-style: none; display: grid; padding: 0; gap: 10px; }
+.cards li { padding: 12px; border: 1px solid #2c3446; border-radius: 8px; background: #131925; }
+.row { display: flex; gap: 8px; margin-top: 8px; }
+.error { color: #ff8c8c; }
