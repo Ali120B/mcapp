@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fs, path::{Path, PathBuf}, process::Command};
 use tauri::{AppHandle, Emitter};
 
-const USER_AGENT_VALUE: &str = "mcapp-launcher/0.1.0 (hello@example.com)";
+const USER_AGENT_VALUE: &str = "pulsar-launcher/0.1.0 (hello@example.com)";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct OfflineAccount { id: String, username: String, kind: String }

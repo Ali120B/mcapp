@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { getInstanceState, importMrpack, installVersionToInstance, removeInstanceMod, setInstanceSettings, toggleInstanceMod, launchInstance, stopInstance, getRunningInstances, type InstanceSettings, type InstanceState } from '../hooks/api';
+import { useTaskCenter } from '../components';
 
 const empty: InstanceState = { mods: [], worlds: [], logs: [], settings: { memory_mb: 4096, width: 1280, height: 720 } };
 
@@ -12,6 +13,7 @@ export function InstanceDetailPage() {
   const [mrpackPath, setMrpackPath] = useState('');
   const [running, setRunning] = useState(false);
   const [launchMsg, setLaunchMsg] = useState('');
+  const { queueTask, updateTask } = useTaskCenter();
 
   const refresh = () => getInstanceState(id).then(setState);
   useEffect(() => { if (id) { void refresh(); void getRunningInstances().then(r=>setRunning(r.some(x=>x.instance_id===id))); } }, [id]);
@@ -23,11 +25,11 @@ export function InstanceDetailPage() {
     <div className='toolbar'>
       <input placeholder='Project ID' value={projectId} onChange={e=>setProjectId(e.target.value)} />
       <input placeholder='Version ID' value={versionId} onChange={e=>setVersionId(e.target.value)} />
-      <button onClick={()=>installVersionToInstance(id, projectId, versionId).then(setState)}>Install version</button>
+      <button onClick={()=>{ const taskId=`install-${id}`; queueTask({ id: taskId, instanceId: id, label: `Install content for ${id}`, kind: 'download', status: 'queued', step: 'queued', progress: 0 }); installVersionToInstance(id, projectId, versionId).then(setState).catch(err=>updateTask(taskId,{status:'error',step:'failed',error:String(err),progress:1})); }}>Install version</button>
     </div>
     <div className='toolbar'>
       <input placeholder='Path to .mrpack' value={mrpackPath} onChange={e=>setMrpackPath(e.target.value)} />
-      <button onClick={()=>importMrpack(id, mrpackPath).then(setState)}>Import .mrpack</button>
+      <button onClick={()=>{ const taskId=`import-${id}`; queueTask({ id: taskId, instanceId: id, label: `Import modpack for ${id}`, kind: 'import', status: 'running', step: 'extracting', progress: 0.2 }); importMrpack(id, mrpackPath).then(st=>{ updateTask(taskId,{status:'done',step:'complete',progress:1}); setState(st); }).catch(err=>updateTask(taskId,{status:'error',step:'failed',error:String(err),progress:1})); }}>Import .mrpack</button>
     </div>
 
     <h3>Launch</h3>
