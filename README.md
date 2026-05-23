@@ -2,7 +2,7 @@
 
 MCApp is a **Tauri v2 + React + TypeScript** Minecraft launcher work-in-progress built against the multi-phase plan in `plan.md`.
 
-## Phase implementation status audit (0–12)
+## Phase implementation status audit (0–13)
 
 | Phase | Status | Notes |
 |---|---|---|
@@ -18,7 +18,8 @@ MCApp is a **Tauri v2 + React + TypeScript** Minecraft launcher work-in-progress
 | 9 | ✅ Implemented (baseline) | Instance content/worlds/logs/settings page with mod toggle/remove actions. |
 | 10 | ✅ Implemented (baseline) | Per-instance settings persisted (memory/java/window/hooks core fields). |
 | 11 | ✅ Implemented in this update | Launch/stop pipeline commands + running instance tracking + UI controls. |
-| 12 | ✅ Implemented in this update | Application settings page: appearance/privacy/defaults/resources + Java list. |
+| 12 | ✅ Implemented | Application settings page: appearance/privacy/defaults/resources + Java list. |
+| 13 | ✅ Implemented (polish baseline) | Global toast feedback, install progress tray, offline discover cache/banner, empty states, route error boundary, keyboard shortcuts. |
 
 > “Baseline” means implemented end-to-end with currently practical scope in this repo, with room for deeper parity enhancements.
 
@@ -41,6 +42,16 @@ MCApp is a **Tauri v2 + React + TypeScript** Minecraft launcher work-in-progress
   - Default instance options (loader/version/RAM)
   - Resource options (concurrency/cache + clear cache)
 - Added Java installations section in Settings using backend detection.
+
+
+
+## Latest polish update (Phase 13)
+- Added global toast notifications for success/error/info UI feedback.
+- Added floating install/download progress tray powered by `install:progress` backend events.
+- Added route-level error boundary fallback UI for renderer stability.
+- Added discover offline fallback with local cache + offline banner messaging.
+- Added keyboard shortcuts: `Ctrl+,` opens Settings and `Ctrl+N` jumps to Library/new-instance entry.
+- Added friendlier empty-state UI for no-data flows.
 
 ## UI quality / reference direction
 - Updated global styling to a cleaner launcher-like dark visual system with improved spacing, gradients, cards, active nav states, and less “unstyled/demo” feeling.
