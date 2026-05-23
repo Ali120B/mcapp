@@ -16,3 +16,9 @@ export const getProjectVersions=(projectId:string)=>invoke<ModrinthVersion[]>('g
 export const listInstances=()=>invoke<InstancesState>('list_instances');
 export const createInstance=(name:string,mcVersion:string,loader:string)=>invoke<InstancesState>('create_instance',{name,mcVersion,loader});
 export const deleteInstance=(instanceId:string)=>invoke<InstancesState>('delete_instance',{instanceId});
+
+export type JavaInstallation={path:string;version:string;major:number};
+export type JavaRecommendation={mc_version:string;required_major:number;installed_match:JavaInstallation|null};
+export const detectJavaInstallations=()=>invoke<JavaInstallation[]>('detect_java_installations');
+export const recommendJavaForMc=(mcVersion:string)=>invoke<JavaRecommendation>('recommend_java_for_mc',{mcVersion});
+export const downloadAdoptiumJava=(major:number)=>invoke<string>('download_adoptium_java',{major});
