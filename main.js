@@ -1,45 +1,194 @@
-const store={
-  page:'home',sub:'content',
-  accounts:JSON.parse(localStorage.accounts||'[]'),activeAccount:localStorage.activeAccount||'',
-  instances:JSON.parse(localStorage.instances||'[]'),
-  settings:JSON.parse(localStorage.settings||'{"theme":"Dark","telemetry":false,"ram":"4G","java":"auto"}'),
-  downloads:[],logs:['[launcher] ready'],filters:{type:'modpack',q:''}
+const API_BASE = 'https://api.modrinth.com/v2';
+
+const store = {
+  page: 'home',
+  projectType: 'modpack',
+  searchQuery: '',
+  discoverPage: 1,
+  pageSize: 10,
+  sort: 'downloads',
+  selectedProject: null,
+  projectVersions: [],
+  tags: { categories: [], loaders: [], gameVersions: [] },
+  featured: { modpacks: [], mods: [] },
+  discoverResults: { hits: [], total_hits: 0 },
+  loading: false,
+  error: '',
+  accounts: JSON.parse(localStorage.accounts || '[]'),
+  activeAccount: localStorage.activeAccount || '',
+  instances: JSON.parse(localStorage.instances || '[]'),
 };
-const featured=[{name:'Fabulously Optimized',type:'modpack',desc:'FPS + QoL',dl:'8.2M',followers:'120k'},{name:'Adrenaline',type:'modpack',desc:'Perf visuals',dl:'5.7M',followers:'83k'},{name:'Sodium',type:'mod',desc:'Renderer',dl:'52M',followers:'390k'},{name:'Iris',type:'shader',desc:'Shaders',dl:'35M',followers:'270k'}];
-const tags={categories:['adventure','combat','magic','optimization'],versions:['1.20.4','1.21.1','1.21.4'],loaders:['fabric','forge','neoforge','quilt']};
-const q=s=>document.querySelector(s);const save=()=>{localStorage.accounts=JSON.stringify(store.accounts);localStorage.activeAccount=store.activeAccount;localStorage.instances=JSON.stringify(store.instances);localStorage.settings=JSON.stringify(store.settings)};
-const uid=()=>crypto.randomUUID();
-function offlineUuid(name){let h=0;for(let i=0;i<name.length;i++)h=(h*31+name.charCodeAt(i))>>>0;return`00000000-0000-3000-8000-${h.toString(16).padStart(12,'0').slice(-12)}`}
-function fakeDownload(label){const id=uid();store.downloads.push({id,label,p:0});const t=setInterval(()=>{const d=store.downloads.find(x=>x.id===id);if(!d)return clearInterval(t);d.p=Math.min(100,d.p+10);if(d.p===100){store.logs.push(`[download] completed ${label}`);clearInterval(t)}render();},130)}
-function nav(){return ['home','discover','library','instance','settings'].map(p=>`<div class="navbtn ${store.page===p?'active':''}" data-nav="${p}">${p[0].toUpperCase()}</div>`).join('')}
-function accountPanel(){const a=store.accounts.find(x=>x.id===store.activeAccount);return`<div class=panel><h3>Playing as</h3><div>${a?a.username:'None selected'}</div><small>${a?a.uuid:''}</small><div class=row style="margin-top:8px"><button class=primary id=addacc>Offline</button><button disabled>Microsoft</button><button disabled>Ely.by</button></div></div>
-<div class=panel><b>Accounts</b><div class=list>${store.accounts.map(a=>`<div class=item><div>${a.username}<div class=tag>${a.type}</div></div><div><button data-use="${a.id}">Use</button> <button data-delacc="${a.id}">X</button></div></div>`).join('')||'<small>No accounts</small>'}</div></div>
-<div class=panel><b>Download Manager</b>${store.downloads.map(d=>`<div style="margin:8px 0">${d.label}<div class=progress><div class=bar style="width:${d.p}%"></div></div></div>`).join('')||'<small>No active downloads</small>'}</div>`}
-function home(){return`<div class=top><h2>Welcome back!</h2><span class=status>${store.instances.length?'Ready to play':'No instances running'}</span></div>
-<h3>Jump back in</h3><div class=cards>${store.instances.slice(0,4).map(i=>`<div class=card><span class=badge>${i.loader}</span><h4>${i.name}</h4><div class=tag>${i.version}</div><button class=primary data-play="${i.id}">Play</button></div>`).join('')||'<div class=card>No instances yet</div>'}</div>
-<h3>Discover a modpack</h3><div class=cards>${featured.filter(f=>f.type==='modpack').map(card).join('')}</div><h3>Discover mods</h3><div class=cards>${featured.filter(f=>f.type!=='modpack').map(card).join('')}</div>`}
-const card=f=>`<div class=card><span class=badge>${f.type}</span><h4>${f.name}</h4><p>${f.desc}</p><div class=tag>${f.dl} downloads • ${f.followers} followers</div><div class=row><button class=primary data-install="${f.name}">Install</button><button data-open="${f.name}">Details</button></div></div>`;
-function discover(){const rows=featured.filter(f=>f.type.includes(store.filters.type.replace('pack',''))||store.filters.type==='all').filter(f=>f.name.toLowerCase().includes(store.filters.q.toLowerCase()));return`<div class=top><h2>Discover content</h2><div class=row><input id=search class=input placeholder="Search" value="${store.filters.q}"><select id=type><option ${sel('modpack')}>modpack</option><option ${sel('mod')}>mod</option><option ${sel('shader')}>shader</option><option ${sel('all')}>all</option></select></div></div>
-<div class=hsplit><div><div class=list>${rows.map(f=>`<div class=item><div><b>${f.name}</b><div class=tag>${f.type} • ${f.desc}</div></div><button class=primary data-install="${f.name}">Install</button></div>`).join('')||'No results'}</div></div><aside class=panel><b>Filters</b><div class=tabs>${tags.categories.map(t=>`<span class=tab>${t}</span>`).join('')}</div><small>Game versions: ${tags.versions.join(', ')}</small><br><small>Loaders: ${tags.loaders.join(', ')}</small></aside></div>`}
-function library(){return`<div class=top><h2>Instances</h2><div class=row><button id=create class=primary>Create</button><button id=importmr class=warn>Import .mrpack</button></div></div><div class=list>${store.instances.map(i=>`<div class=item><div><b>${i.name}</b><div class=tag>${i.loader} • ${i.version}</div></div><div><button data-view="${i.id}">Open</button> <button data-delinst="${i.id}">Delete</button></div></div>`).join('')||'<small>Empty library</small>'}</div>`}
-function instanceDetail(){const i=store.instances.find(x=>x.id===store.currentInstance)||store.instances[0];if(!i)return '<h3>No instance selected</h3>';return`<div class=top><h2>${i.name}</h2><div class=row><button class=primary data-play="${i.id}">Play</button><button id=instset>Settings</button></div></div>
-<div class=tabs>${['content','worlds','logs'].map(t=>`<div class="tab ${store.sub===t?'active':''}" data-sub="${t}">${t}</div>`).join('')}</div>
-${store.sub==='content'?`<div class=list><div class=item><div>Sodium.jar<div class=tag>enabled</div></div><div><button>Disable</button> <button>Delete</button></div></div></div><button class=primary data-install="Content pack">Install content</button>`:''}
-${store.sub==='worlds'?`<div class=panel>Worlds folder mock: <b>saves/</b></div>`:''}
-${store.sub==='logs'?`<div class=panel style="white-space:pre-wrap">${store.logs.join('\n')}</div>`:''}`}
-function settings(){return`<h2>Settings</h2><div class=grid><div class=panel><b>Appearance</b><div class=row><select id=theme><option ${opt('Dark')}>Dark</option><option ${opt('OLED')}>OLED</option><option ${opt('Light')}>Light</option></select><label><input type=checkbox id=tele ${store.settings.telemetry?'checked':''}> telemetry</label></div></div>
-<div class=panel><b>Java & Memory</b><div class=row><input id=java value="${store.settings.java}"><input id=ram value="${store.settings.ram}"></div><small>Auto-detect + auto-download simulated.</small></div>
-<div class=panel><b>Privacy</b><p class=muted>No telemetry by default.</p></div></div><button class=primary id=saveset>Save settings</button>`}
-const sel=v=>store.filters.type===v?'selected':'';const opt=v=>store.settings.theme===v?'selected':'';
-const pageView=()=>({home,discover,library,instance:instanceDetail,settings}[store.page]||home)();
-function render(){document.getElementById('app').innerHTML=`<div class=app><aside class=sidebar><div class=logo>PL</div>${nav()}</aside><main class=main>${pageView()}</main><aside class=right>${accountPanel()}</aside></div>`;bind()}
-function bind(){document.querySelectorAll('[data-nav]').forEach(n=>n.onclick=()=>{store.page=n.dataset.nav;render()});q('#addacc')?.addEventListener('click',()=>{const u=prompt('Offline username');if(!u)return;const id=uid();store.accounts.push({id,type:'offline',username:u,uuid:offlineUuid('OfflinePlayer:'+u)});store.activeAccount=id;save();render()});
-document.querySelectorAll('[data-use]').forEach(b=>b.onclick=()=>{store.activeAccount=b.dataset.use;save();render()});document.querySelectorAll('[data-delacc]').forEach(b=>b.onclick=()=>{store.accounts=store.accounts.filter(a=>a.id!==b.dataset.delacc);if(store.activeAccount===b.dataset.delacc)store.activeAccount='';save();render()});
-q('#search')?.addEventListener('input',e=>{store.filters.q=e.target.value;render()});q('#type')?.addEventListener('change',e=>{store.filters.type=e.target.value;render()});
-q('#create')?.addEventListener('click',()=>{const name=prompt('Instance name?');if(!name)return;const loader=prompt('Loader? vanilla/fabric/forge','fabric')||'fabric';const version=prompt('Version?','1.21.1')||'1.21.1';store.instances.push({id:uid(),name,loader,version});save();render()});
-q('#importmr')?.addEventListener('click',()=>{const name=prompt('.mrpack name','Imported Pack')||'Imported Pack';store.instances.push({id:uid(),name,loader:'fabric',version:'1.21.1'});fakeDownload(`${name} files`);save();render()});
-document.querySelectorAll('[data-delinst]').forEach(b=>b.onclick=()=>{store.instances=store.instances.filter(i=>i.id!==b.dataset.delinst);save();render()});document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{store.currentInstance=b.dataset.view;store.page='instance';render()});
-document.querySelectorAll('[data-sub]').forEach(b=>b.onclick=()=>{store.sub=b.dataset.sub;render()});document.querySelectorAll('[data-install]').forEach(b=>b.onclick=()=>fakeDownload(b.dataset.install));
-document.querySelectorAll('[data-play]').forEach(b=>b.onclick=()=>{store.logs.push(`[launch] launching ${b.dataset.play} with --accessToken 0 --userType legacy`);alert('Launch simulated. See Logs tab.');});
-q('#saveset')?.addEventListener('click',()=>{store.settings.theme=q('#theme').value;store.settings.telemetry=q('#tele').checked;store.settings.java=q('#java').value;store.settings.ram=q('#ram').value;save();alert('Saved')});}
-render();
+
+const q = (s) => document.querySelector(s);
+const save = () => {
+  localStorage.accounts = JSON.stringify(store.accounts);
+  localStorage.activeAccount = store.activeAccount;
+  localStorage.instances = JSON.stringify(store.instances);
+};
+const uid = () => crypto.randomUUID();
+
+async function md5Hex(input) {
+  const data = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest('MD5', data).catch(() => null);
+  if (!hash) return '00000000000000000000000000000000';
+  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function offlineUuid(username) {
+  const input = `OfflinePlayer:${username}`;
+  const hex = await md5Hex(input);
+  const bytes = hex.match(/.{1,2}/g).map((h) => parseInt(h, 16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x30;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const out = bytes.map((b) => b.toString(16).padStart(2, '0')).join('');
+  return `${out.slice(0, 8)}-${out.slice(8, 12)}-${out.slice(12, 16)}-${out.slice(16, 20)}-${out.slice(20)}`;
+}
+
+async function modrinth(path, params = {}) {
+  const url = new URL(`${API_BASE}${path}`);
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v));
+  });
+  const res = await fetch(url, {
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Launcher': 'PulsarLauncher-Web-Prototype',
+    },
+  });
+  if (!res.ok) throw new Error(`Modrinth ${res.status}`);
+  return res.json();
+}
+
+async function loadTags() {
+  const [categories, loaders, gameVersions] = await Promise.all([
+    modrinth('/tag/category'),
+    modrinth('/tag/loader'),
+    modrinth('/tag/game_version'),
+  ]);
+  store.tags.categories = categories.map((x) => x.name).slice(0, 24);
+  store.tags.loaders = loaders.map((x) => x.name);
+  store.tags.gameVersions = gameVersions.map((x) => x.version).slice(0, 20);
+}
+
+async function loadHome() {
+  const [modpacks, mods] = await Promise.all([
+    modrinth('/search', { limit: 4, index: 'downloads', facets: JSON.stringify([[`project_type:modpack`]]) }),
+    modrinth('/search', { limit: 4, index: 'downloads', facets: JSON.stringify([[`project_type:mod`]]) }),
+  ]);
+  store.featured.modpacks = modpacks.hits;
+  store.featured.mods = mods.hits;
+}
+
+async function searchDiscover() {
+  const offset = (store.discoverPage - 1) * store.pageSize;
+  const facets = [[`project_type:${store.projectType}`]];
+  const data = await modrinth('/search', {
+    query: store.searchQuery,
+    limit: store.pageSize,
+    offset,
+    index: store.sort,
+    facets: JSON.stringify(facets),
+  });
+  store.discoverResults = data;
+}
+
+async function openProject(slug) {
+  store.loading = true;
+  render();
+  try {
+    const project = await modrinth(`/project/${slug}`);
+    const versions = await modrinth(`/project/${project.id}/version`);
+    store.selectedProject = project;
+    store.projectVersions = versions;
+    store.page = 'project';
+  } catch (e) { store.error = String(e); }
+  store.loading = false;
+  render();
+}
+
+function nav() {
+  return ['home', 'discover', 'library', 'settings'].map((p) => `<div class="navbtn ${store.page === p ? 'active' : ''}" data-nav="${p}">${p[0].toUpperCase()}</div>`).join('');
+}
+
+function accountPanel() {
+  const a = store.accounts.find((x) => x.id === store.activeAccount);
+  return `<div class=panel><h3>Playing as</h3><div>${a ? a.username : 'None selected'}</div><small>${a ? a.uuid : ''}</small><div class=row style="margin-top:8px"><button class=primary id=addacc>Offline</button></div></div>
+  <div class=panel><b>Accounts</b><div class=list>${store.accounts.map((x) => `<div class=item><div>${x.username}<div class=tag>${x.type}</div></div><div><button data-use="${x.id}">Use</button> <button data-delacc="${x.id}">X</button></div></div>`).join('') || '<small>No accounts</small>'}</div></div>`;
+}
+
+const projectCard = (p) => `<div class=card><span class=badge>${p.project_type}</span><h4>${p.title}</h4><p>${p.description || ''}</p><div class=tag>${p.downloads?.toLocaleString?.() || 0} downloads</div><div class=row><button class=primary data-open="${p.slug}">Details</button></div></div>`;
+
+function home() {
+  return `<div class=top><h2>Welcome back!</h2><span class=status>${store.instances.length ? 'Ready to play' : 'No instances running'}</span></div>
+  <h3>Jump back in</h3><div class=cards>${store.instances.slice(0, 3).map((i) => `<div class=card><h4>${i.name}</h4><div class=tag>${i.loader} • ${i.version}</div></div>`).join('') || '<div class=card>No instances yet</div>'}</div>
+  <h3>Discover a modpack</h3><div class=cards>${store.featured.modpacks.map(projectCard).join('')}</div>
+  <h3>Discover mods</h3><div class=cards>${store.featured.mods.map(projectCard).join('')}</div>`;
+}
+
+function discover() {
+  const maxPage = Math.max(1, Math.ceil((store.discoverResults.total_hits || 0) / store.pageSize));
+  return `<div class=top><h2>Discover content</h2><div class=row>
+  <input id=search class=input placeholder="Search" value="${store.searchQuery}">
+  <select id=ptype><option value="modpack" ${store.projectType === 'modpack' ? 'selected' : ''}>modpack</option><option value="mod" ${store.projectType === 'mod' ? 'selected' : ''}>mod</option><option value="resourcepack" ${store.projectType === 'resourcepack' ? 'selected' : ''}>resourcepack</option><option value="shader" ${store.projectType === 'shader' ? 'selected' : ''}>shader</option></select>
+  <select id=sort><option value="downloads" ${store.sort === 'downloads' ? 'selected' : ''}>downloads</option><option value="follows" ${store.sort === 'follows' ? 'selected' : ''}>follows</option><option value="updated" ${store.sort === 'updated' ? 'selected' : ''}>updated</option></select>
+  </div></div>
+  <div class=hsplit><div><div class=list>${(store.discoverResults.hits || []).map((h) => `<div class=item><div><b>${h.title}</b><div class=tag>${h.author} • ${h.description || ''}</div></div><button data-open="${h.slug}">Open</button></div>`).join('')}</div><div class=row><button id=prev ${store.discoverPage <= 1 ? 'disabled' : ''}>Prev</button><span>Page ${store.discoverPage}/${maxPage}</span><button id=next ${store.discoverPage >= maxPage ? 'disabled' : ''}>Next</button></div></div>
+  <aside class=panel><b>Tags</b><small>Categories: ${store.tags.categories.slice(0, 8).join(', ')}</small><br><small>Loaders: ${store.tags.loaders.join(', ')}</small><br><small>MC Versions: ${store.tags.gameVersions.slice(0, 6).join(', ')}</small></aside></div>`;
+}
+
+function projectDetail() {
+  const p = store.selectedProject;
+  if (!p) return '<h3>No project selected</h3>';
+  return `<div class=top><h2>${p.title}</h2><button id=backdisc>Back</button></div>
+  <div class=panel><p>${p.description || ''}</p><small>${p.project_type} • ${p.downloads?.toLocaleString?.() || 0} downloads • ${p.followers || 0} followers</small></div>
+  <h3>Versions</h3><div class=list>${store.projectVersions.slice(0, 25).map((v) => `<div class=item><div><b>${v.name}</b><div class=tag>${v.version_number} • ${v.loaders.join(', ')} • ${v.game_versions.join(', ')}</div></div><button data-install="${p.title} ${v.version_number}">Install</button></div>`).join('')}</div>`;
+}
+
+function library() { return `<h2>Instances</h2><div class=list>${store.instances.map((i) => `<div class=item><div><b>${i.name}</b><div class=tag>${i.loader} • ${i.version}</div></div></div>`).join('') || 'Empty'}</div>`; }
+function settings() { return '<h2>Settings</h2><div class=panel>Global settings placeholder (Phase 12)</div>'; }
+
+const pageView = () => ({ home, discover, library, settings, project: projectDetail }[store.page] || home)();
+
+function render() {
+  document.getElementById('app').innerHTML = `<div class=app><aside class=sidebar><div class=logo>PL</div>${nav()}</aside><main class=main>${store.error ? `<div class=panel>${store.error}</div>` : ''}${store.loading ? '<div class=panel>Loading...</div>' : pageView()}</main><aside class=right>${accountPanel()}</aside></div>`;
+  bind();
+}
+
+function bind() {
+  document.querySelectorAll('[data-nav]').forEach((n) => n.onclick = async () => { store.page = n.dataset.nav; if (store.page === 'discover') await searchDiscover(); render(); });
+  q('#addacc')?.addEventListener('click', async () => {
+    const u = prompt('Offline username');
+    if (!u) return;
+    const id = uid();
+    const uuid = await offlineUuid(u);
+    store.accounts.push({ id, type: 'offline', username: u, uuid });
+    store.activeAccount = id;
+    save();
+    render();
+  });
+  document.querySelectorAll('[data-use]').forEach((b) => b.onclick = () => { store.activeAccount = b.dataset.use; save(); render(); });
+  document.querySelectorAll('[data-delacc]').forEach((b) => b.onclick = () => { store.accounts = store.accounts.filter((a) => a.id !== b.dataset.delacc); if (store.activeAccount === b.dataset.delacc) store.activeAccount = ''; save(); render(); });
+  q('#search')?.addEventListener('change', async (e) => { store.searchQuery = e.target.value; store.discoverPage = 1; await searchDiscover(); render(); });
+  q('#ptype')?.addEventListener('change', async (e) => { store.projectType = e.target.value; store.discoverPage = 1; await searchDiscover(); render(); });
+  q('#sort')?.addEventListener('change', async (e) => { store.sort = e.target.value; store.discoverPage = 1; await searchDiscover(); render(); });
+  q('#prev')?.addEventListener('click', async () => { store.discoverPage = Math.max(1, store.discoverPage - 1); await searchDiscover(); render(); });
+  q('#next')?.addEventListener('click', async () => { store.discoverPage += 1; await searchDiscover(); render(); });
+  document.querySelectorAll('[data-open]').forEach((b) => b.onclick = () => openProject(b.dataset.open));
+  q('#backdisc')?.addEventListener('click', async () => { store.page = 'discover'; await searchDiscover(); render(); });
+}
+
+(async function init() {
+  try {
+    store.loading = true;
+    render();
+    await loadTags();
+    await loadHome();
+    await searchDiscover();
+    store.loading = false;
+    render();
+  } catch (e) {
+    store.loading = false;
+    store.error = `Failed to initialize launcher data: ${String(e)}`;
+    render();
+  }
+})();
