@@ -1,14 +1,17 @@
 :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
-body { margin: 0; background: #0f1118; color: #e8ecf3; }
-.app-shell { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
-.sidebar { border-right: 1px solid #1f2430; padding: 16px; }
+body { margin: 0; background: radial-gradient(circle at top, #1a1f2e, #0b0f16 58%); color: #e8ecf3; }
+.app-shell { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
+.sidebar { border-right: 1px solid #20283a; padding: 18px; background: rgba(11,16,24,.86); backdrop-filter: blur(8px); }
+.sidebar h1 { margin-top: 0; letter-spacing: .6px; }
 .sidebar nav { display: grid; gap: 8px; }
-.sidebar a { color: #8ea6ff; text-decoration: none; padding: 6px 8px; border-radius: 6px; }
-.sidebar a.active { background: #1f2b4a; color: #dce6ff; }
-.content { padding: 20px; }
-.toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
-input, button { padding: 8px 10px; border-radius: 8px; border: 1px solid #2c3446; background: #141a24; color: #e8ecf3; }
-.cards { list-style: none; display: grid; padding: 0; gap: 10px; }
-.cards li { padding: 12px; border: 1px solid #2c3446; border-radius: 8px; background: #131925; }
-.row { display: flex; gap: 8px; margin-top: 8px; }
+.sidebar a { color: #9eb4ff; text-decoration: none; padding: 9px 10px; border-radius: 10px; }
+.sidebar a.active,.active-pill { background: linear-gradient(90deg,#263a64,#1f7b54); color: #ebf5ff; }
+.content { padding: 24px; max-width: 1200px; }
+section h2 { margin-top: 0; }
+.toolbar { display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; align-items:center; }
+input, button { padding: 9px 11px; border-radius: 10px; border: 1px solid #31405d; background: #111827; color: #eff3fb; }
+button { cursor: pointer; }
+.cards { list-style: none; display: grid; grid-template-columns: repeat(auto-fill,minmax(250px,1fr)); padding: 0; gap: 12px; }
+.cards li { padding: 14px; border: 1px solid #2d3d5f; border-radius: 12px; background: linear-gradient(180deg,#121a29,#111722); }
+.row { display: flex; gap: 8px; margin-top: 8px; align-items:center; }
 .error { color: #ff8c8c; }

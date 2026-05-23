@@ -124,4 +124,54 @@ fn required_java_for_mc(mc: &str) -> u32 { let minor = mc.split('.').nth(1).and_
 #[tauri::command] async fn get_project_versions(project_id: String) -> Result<Vec<ModrinthVersion>,String>{ modrinth_client()?.get(format!("https://api.modrinth.com/v2/project/{project_id}/version")).send().await.map_err(|e|e.to_string())?.error_for_status().map_err(|e|e.to_string())?.json().await.map_err(|e|e.to_string()) }
 #[tauri::command] async fn get_tags() -> Result<HashMap<String, serde_json::Value>, String> { let c=modrinth_client()?; let cats:serde_json::Value=c.get("https://api.modrinth.com/v2/tag/category").send().await.map_err(|e|e.to_string())?.json().await.map_err(|e|e.to_string())?; let vers:serde_json::Value=c.get("https://api.modrinth.com/v2/tag/game_version").send().await.map_err(|e|e.to_string())?.json().await.map_err(|e|e.to_string())?; let loaders:serde_json::Value=c.get("https://api.modrinth.com/v2/tag/loader").send().await.map_err(|e|e.to_string())?.json().await.map_err(|e|e.to_string())?; Ok(HashMap::from([(String::from("categories"),cats),(String::from("game_versions"),vers),(String::from("loaders"),loaders)])) }
 
-fn main(){ tauri::Builder::default().invoke_handler(tauri::generate_handler![get_accounts,add_offline_account,delete_account,set_active_account,list_instances,create_instance,delete_instance,get_instance_state,set_instance_settings,toggle_instance_mod,remove_instance_mod,install_version_to_instance,import_mrpack,detect_java_installations,recommend_java_for_mc,download_adoptium_java,search_projects,get_project,get_project_versions,get_tags]).run(tauri::generate_context!()).expect("error while running tauri application"); }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct RunningInstance { instance_id: String, pid: u32, started_at: String }
+fn load_running(app: &AppHandle) -> Result<Vec<RunningInstance>, String> { load_json(app_file(app, "running_instances.json")?) }
+fn save_running(app: &AppHandle, state: &[RunningInstance]) -> Result<(), String> { save_json(app_file(app, "running_instances.json")?, &state) }
+
+#[tauri::command]
+fn get_running_instances(app: AppHandle) -> Result<Vec<RunningInstance>, String> { load_running(&app) }
+
+#[tauri::command]
+fn stop_instance(app: AppHandle, instance_id: String) -> Result<bool, String> {
+    let mut running = load_running(&app)?;
+    if let Some(info) = running.iter().find(|r| r.instance_id == instance_id).cloned() {
+        #[cfg(target_os = "windows")]
+        let _ = Command::new("taskkill").args(["/PID", &info.pid.to_string(), "/F"]).output();
+        #[cfg(not(target_os = "windows"))]
+        let _ = Command::new("kill").args(["-9", &info.pid.to_string()]).output();
+        running.retain(|r| r.instance_id != instance_id);
+        save_running(&app, &running)?;
+        return Ok(true);
+    }
+    Ok(false)
+}
+
+#[tauri::command]
+fn launch_instance(app: AppHandle, instance_id: String) -> Result<String, String> {
+    let instances = load_instances(&app)?;
+    let instance = instances.instances.into_iter().find(|i| i.id == instance_id).ok_or("Instance not found")?;
+    let mut state = load_instance_state(&app, &instance_id)?;
+    let java = state.settings.java_path.clone().or_else(|| detect_java_installations().ok().and_then(|j| j.first().map(|x| x.path.clone()))).unwrap_or_else(|| "java".into());
+
+    if let Some(pre) = &state.settings.pre_launch_hook { let _ = Command::new("sh").arg("-lc").arg(pre).output(); }
+    let mut child = Command::new(&java)
+        .arg(format!("-Xmx{}M", state.settings.memory_mb.max(1024)))
+        .arg("-version")
+        .spawn()
+        .map_err(|e| format!("Launch failed: {e}"))?;
+    let pid = child.id();
+    std::thread::spawn(move || { let _ = child.wait(); });
+
+    state.logs.push(format!("Launching {} {} with {} (offline stub)", instance.name, instance.mc_version, java));
+    save_instance_state(&app, &instance_id, &state)?;
+    app.emit("launch:log", serde_json::json!({"instance_id":instance_id,"line":"Process started"})).map_err(|e| e.to_string())?;
+
+    let mut running = load_running(&app)?;
+    running.retain(|r| r.instance_id != instance_id);
+    running.push(RunningInstance { instance_id, pid, started_at: chrono::Utc::now().to_rfc3339() });
+    save_running(&app, &running)?;
+    Ok("Launched (java -version placeholder pipeline ready for full MC args)".into())
+}
+fn main(){ tauri::Builder::default().invoke_handler(tauri::generate_handler![get_accounts,add_offline_account,delete_account,set_active_account,list_instances,create_instance,delete_instance,get_instance_state,set_instance_settings,toggle_instance_mod,remove_instance_mod,install_version_to_instance,import_mrpack,detect_java_installations,recommend_java_for_mc,download_adoptium_java,search_projects,get_project,get_project_versions,get_tags,launch_instance,stop_instance,get_running_instances]).run(tauri::generate_context!()).expect("error while running tauri application"); }

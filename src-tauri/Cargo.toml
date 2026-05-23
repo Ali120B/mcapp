@@ -18,6 +18,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 thiserror = "1"
 sha1 = "0.10"
 zip = "2"
+chrono = { version = "0.4", default-features = false, features=["clock"] }
 
 [features]
 default = ["custom-protocol"]

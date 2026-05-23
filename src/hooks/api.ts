@@ -32,3 +32,8 @@ export type JavaRecommendation={mc_version:string;required_major:number;installe
 export const detectJavaInstallations=()=>invoke<JavaInstallation[]>('detect_java_installations');
 export const recommendJavaForMc=(mcVersion:string)=>invoke<JavaRecommendation>('recommend_java_for_mc',{mcVersion});
 export const downloadAdoptiumJava=(major:number)=>invoke<string>('download_adoptium_java',{major});
+
+export type RunningInstance={instance_id:string;pid:number;started_at:string};
+export const launchInstance=(instanceId:string)=>invoke<string>('launch_instance',{instanceId});
+export const stopInstance=(instanceId:string)=>invoke<boolean>('stop_instance',{instanceId});
+export const getRunningInstances=()=>invoke<RunningInstance[]>('get_running_instances');

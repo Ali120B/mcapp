@@ -559,3 +559,8 @@ User-Agent: PulsarLauncher/0.1.0 (github.com/yourname/pulsar-launcher)
 | Minecraft game launch | 11 |
 | App settings (settings.png) | 12 |
 | Polish + error handling | 13 |
+
+
+## Implementation Audit Update (through Phase 12)
+- Audited against current repo and updated in README status table.
+- Phase 11 and 12 delivered in current code iteration (launch controls + app settings).
