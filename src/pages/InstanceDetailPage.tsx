@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { getInstanceState, importMrpack, installVersionToInstance, removeInstanceMod, setInstanceSettings, toggleInstanceMod, type InstanceSettings, type InstanceState } from '../hooks/api';
+import { getInstanceState, importMrpack, installVersionToInstance, removeInstanceMod, setInstanceSettings, toggleInstanceMod, launchInstance, stopInstance, getRunningInstances, type InstanceSettings, type InstanceState } from '../hooks/api';
 
 const empty: InstanceState = { mods: [], worlds: [], logs: [], settings: { memory_mb: 4096, width: 1280, height: 720 } };
 
@@ -10,9 +10,11 @@ export function InstanceDetailPage() {
   const [projectId, setProjectId] = useState('');
   const [versionId, setVersionId] = useState('');
   const [mrpackPath, setMrpackPath] = useState('');
+  const [running, setRunning] = useState(false);
+  const [launchMsg, setLaunchMsg] = useState('');
 
   const refresh = () => getInstanceState(id).then(setState);
-  useEffect(() => { if (id) void refresh(); }, [id]);
+  useEffect(() => { if (id) { void refresh(); void getRunningInstances().then(r=>setRunning(r.some(x=>x.instance_id===id))); } }, [id]);
 
   const saveSettings = (s: InstanceSettings) => setInstanceSettings(id, s).then(setState);
 
@@ -26,6 +28,12 @@ export function InstanceDetailPage() {
     <div className='toolbar'>
       <input placeholder='Path to .mrpack' value={mrpackPath} onChange={e=>setMrpackPath(e.target.value)} />
       <button onClick={()=>importMrpack(id, mrpackPath).then(setState)}>Import .mrpack</button>
+    </div>
+
+    <h3>Launch</h3>
+    <div className='toolbar'>
+      {!running ? <button onClick={()=>launchInstance(id).then(m=>{setLaunchMsg(m); setRunning(true);})}>Play instance</button> : <button onClick={()=>stopInstance(id).then(()=>{setLaunchMsg('Stopped'); setRunning(false);})}>Stop instance</button>}
+      <span>{running ? 'Running' : 'Not running'} {launchMsg}</span>
     </div>
 
     <h3>Content</h3>
