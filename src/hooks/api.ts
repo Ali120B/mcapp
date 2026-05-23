@@ -6,6 +6,7 @@ export type ModrinthVersion={id:string;name:string;version_number:string;game_ve
 export type SearchResponse={hits:ModrinthProject[];total_hits?:number};
 export type InstanceSummary={id:string;name:string;mc_version:string;loader:string;last_played?:string|null};
 export type InstancesState={instances:InstanceSummary[]};
+export type RuntimeLog={instance_id:string;timestamp:string;line:string};
 export const getAccounts=()=>invoke<AccountsState>('get_accounts');
 export const addOfflineAccount=(username:string)=>invoke<AccountsState>('add_offline_account',{username});
 export const deleteAccount=(accountId:string)=>invoke<AccountsState>('delete_account',{accountId});
@@ -16,6 +17,11 @@ export const getProjectVersions=(projectId:string)=>invoke<ModrinthVersion[]>('g
 export const listInstances=()=>invoke<InstancesState>('list_instances');
 export const createInstance=(name:string,mcVersion:string,loader:string)=>invoke<InstancesState>('create_instance',{name,mcVersion,loader});
 export const deleteInstance=(instanceId:string)=>invoke<InstancesState>('delete_instance',{instanceId});
+export const duplicateInstance=(instanceId:string)=>invoke<InstancesState>('duplicate_instance',{instanceId});
+export const assignInstanceGroup=(instanceId:string,group:string|null)=>invoke<InstancesState>('assign_instance_group',{instanceId,group});
+export const importMrpack=(mrpackPath:string,instanceName:string)=>invoke<InstancesState>('import_mrpack',{mrpackPath,instanceName});
+export const ingestRuntimeLogLine=(instanceId:string,line:string)=>invoke<void>('ingest_runtime_log_line',{instanceId,line});
+export const getRuntimeLogs=(instanceId:string,limit=250)=>invoke<RuntimeLog[]>('get_runtime_logs',{instanceId,limit});
 
 export type JavaInstallation={path:string;version:string;major:number};
 export type JavaRecommendation={mc_version:string;required_major:number;installed_match:JavaInstallation|null};

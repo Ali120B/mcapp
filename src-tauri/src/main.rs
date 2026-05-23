@@ -1,6 +1,6 @@
 use reqwest::header::{HeaderMap, HeaderValue, USER_AGENT};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs, path::{Path, PathBuf}, process::Command};
+use std::{collections::HashMap, fs, io::{Read, Write}, path::{Path, PathBuf}, process::Command};
 use tauri::AppHandle;
 
 const USER_AGENT_VALUE: &str = "mcapp-launcher/0.1.0 (hello@example.com)";
@@ -14,6 +14,8 @@ struct AccountsState { active_account_id: Option<String>, accounts: Vec<OfflineA
 struct InstanceSummary { id: String, name: String, mc_version: String, loader: String, icon: Option<String>, last_played: Option<String>, group: Option<String> }
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 struct InstancesState { instances: Vec<InstanceSummary> }
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct RuntimeLog { instance_id: String, timestamp: String, line: String }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct ModrinthSearchResponse { hits: Vec<ModrinthHit>, total_hits: Option<u64> }
@@ -37,6 +39,7 @@ fn load_accounts(app: &AppHandle) -> Result<AccountsState, String> { load_json(a
 fn save_accounts(app: &AppHandle, state: &AccountsState) -> Result<(), String> { save_json(app_file(app, "accounts.json")?, state) }
 fn load_instances(app: &AppHandle) -> Result<InstancesState, String> { load_json(app_file(app, "instances.json")?) }
 fn save_instances(app: &AppHandle, state: &InstancesState) -> Result<(), String> { save_json(app_file(app, "instances.json")?, state) }
+fn runtime_log_file(app: &AppHandle, instance_id: &str) -> Result<PathBuf, String> { app_file(app, &format!("logs/{instance_id}.log")) }
 
 fn offline_uuid(name: &str) -> String {
     let digest = md5::compute(format!("OfflinePlayer:{name}").as_bytes());
@@ -88,6 +91,67 @@ fn required_java_for_mc(mc: &str) -> u32 {
 #[tauri::command] fn list_instances(app: AppHandle) -> Result<InstancesState, String> { load_instances(&app) }
 #[tauri::command] fn create_instance(app: AppHandle, name: String, mc_version: String, loader: String) -> Result<InstancesState, String> { let mut s=load_instances(&app)?; let id = format!("{}-{}", name.to_lowercase().replace(' ',"-"), s.instances.len()+1); s.instances.push(InstanceSummary{id,name,mc_version,loader,icon:None,last_played:None,group:None}); save_instances(&app,&s)?; Ok(s)}
 #[tauri::command] fn delete_instance(app: AppHandle, instance_id: String) -> Result<InstancesState, String> { let mut s=load_instances(&app)?; s.instances.retain(|i|i.id!=instance_id); save_instances(&app,&s)?; Ok(s)}
+#[tauri::command] fn duplicate_instance(app: AppHandle, instance_id: String) -> Result<InstancesState, String> {
+    let mut s = load_instances(&app)?;
+    if let Some(src) = s.instances.iter().find(|i| i.id == instance_id).cloned() {
+        let mut dup = src.clone();
+        dup.id = format!("{}-copy-{}", src.id, s.instances.len() + 1);
+        dup.name = format!("{} (Copy)", src.name);
+        s.instances.push(dup);
+        save_instances(&app, &s)?;
+    }
+    Ok(s)
+}
+#[tauri::command] fn assign_instance_group(app: AppHandle, instance_id: String, group: Option<String>) -> Result<InstancesState, String> {
+    let mut s = load_instances(&app)?;
+    if let Some(i) = s.instances.iter_mut().find(|i| i.id == instance_id) { i.group = group; }
+    save_instances(&app, &s)?;
+    Ok(s)
+}
+
+#[tauri::command] fn ingest_runtime_log_line(app: AppHandle, instance_id: String, line: String) -> Result<(), String> {
+    let path = runtime_log_file(&app, &instance_id)?;
+    if let Some(parent) = path.parent() { fs::create_dir_all(parent).map_err(|e| e.to_string())?; }
+    let mut f = fs::OpenOptions::new().create(true).append(true).open(path).map_err(|e| e.to_string())?;
+    writeln!(f, "{line}").map_err(|e| e.to_string())?;
+    Ok(())
+}
+#[tauri::command] fn get_runtime_logs(app: AppHandle, instance_id: String, limit: Option<usize>) -> Result<Vec<RuntimeLog>, String> {
+    let path = runtime_log_file(&app, &instance_id)?;
+    if !path.exists() { return Ok(vec![]); }
+    let text = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let lim = limit.unwrap_or(250);
+    let lines: Vec<_> = text.lines().rev().take(lim).collect();
+    Ok(lines.into_iter().rev().map(|line| RuntimeLog { instance_id: instance_id.clone(), timestamp: String::new(), line: line.to_string() }).collect())
+}
+
+#[tauri::command] fn import_mrpack(app: AppHandle, mrpack_path: String, instance_name: String) -> Result<InstancesState, String> {
+    let mut s = load_instances(&app)?;
+    let id = format!("{}-{}", instance_name.to_lowercase().replace(' ', "-"), s.instances.len() + 1);
+    let instance_dir = app_file(&app, &format!("instances/{id}"))?;
+    fs::create_dir_all(&instance_dir).map_err(|e| e.to_string())?;
+    let file = fs::File::open(&mrpack_path).map_err(|e| e.to_string())?;
+    let mut zip = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+    for i in 0..zip.len() {
+        let mut entry = zip.by_index(i).map_err(|e| e.to_string())?;
+        let name = entry.name().to_string();
+        if !(name.starts_with("overrides/") || name.starts_with("client-overrides/")) { continue; }
+        let rel = name.strip_prefix("overrides/").or_else(|| name.strip_prefix("client-overrides/")).unwrap_or("");
+        if rel.is_empty() { continue; }
+        let out = instance_dir.join(rel);
+        if entry.is_dir() {
+            fs::create_dir_all(&out).map_err(|e| e.to_string())?;
+            continue;
+        }
+        if let Some(parent) = out.parent() { fs::create_dir_all(parent).map_err(|e| e.to_string())?; }
+        let mut data = Vec::new();
+        entry.read_to_end(&mut data).map_err(|e| e.to_string())?;
+        fs::write(out, data).map_err(|e| e.to_string())?;
+    }
+    s.instances.push(InstanceSummary { id, name: instance_name, mc_version: "unknown".into(), loader: "mrpack".into(), icon: None, last_played: None, group: None });
+    save_instances(&app, &s)?;
+    Ok(s)
+}
 
 #[tauri::command] fn detect_java_installations() -> Result<Vec<JavaInstallation>, String> {
     let mut seen = std::collections::HashSet::new();
@@ -134,4 +198,4 @@ async fn search_projects(query: String, project_type: String, categories: Option
 #[tauri::command] async fn get_project_versions(project_id: String) -> Result<Vec<ModrinthVersion>,String>{ modrinth_client()?.get(format!("https://api.modrinth.com/v2/project/{project_id}/version")).send().await.map_err(|e|e.to_string())?.error_for_status().map_err(|e|e.to_string())?.json().await.map_err(|e|e.to_string()) }
 #[tauri::command] async fn get_tags() -> Result<HashMap<String, serde_json::Value>, String> { let c=modrinth_client()?; let cats:serde_json::Value=c.get("https://api.modrinth.com/v2/tag/category").send().await.map_err(|e|e.to_string())?.json().await.map_err(|e|e.to_string())?; let vers:serde_json::Value=c.get("https://api.modrinth.com/v2/tag/game_version").send().await.map_err(|e|e.to_string())?.json().await.map_err(|e|e.to_string())?; let loaders:serde_json::Value=c.get("https://api.modrinth.com/v2/tag/loader").send().await.map_err(|e|e.to_string())?.json().await.map_err(|e|e.to_string())?; Ok(HashMap::from([(String::from("categories"),cats),(String::from("game_versions"),vers),(String::from("loaders"),loaders)])) }
 
-fn main(){ tauri::Builder::default().invoke_handler(tauri::generate_handler![get_accounts,add_offline_account,delete_account,set_active_account,list_instances,create_instance,delete_instance,detect_java_installations,recommend_java_for_mc,download_adoptium_java,search_projects,get_project,get_project_versions,get_tags]).run(tauri::generate_context!()).expect("error while running tauri application"); }
+fn main(){ tauri::Builder::default().invoke_handler(tauri::generate_handler![get_accounts,add_offline_account,delete_account,set_active_account,list_instances,create_instance,delete_instance,duplicate_instance,assign_instance_group,ingest_runtime_log_line,get_runtime_logs,import_mrpack,detect_java_installations,recommend_java_for_mc,download_adoptium_java,search_projects,get_project,get_project_versions,get_tags]).run(tauri::generate_context!()).expect("error while running tauri application"); }
